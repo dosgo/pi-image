@@ -9,12 +9,14 @@ import (
 	_ "github.com/diskfs/go-diskfs/disk"
 	_ "github.com/diskfs/go-diskfs/partition"
 )
+var version="v1.0-(2020-10-05)"
 
 //https://github.com/dsoprea/go-ext4
 //https://github.com/nerd2/gexto
 //https://github.com/paulmey/inspect-azure-vhd/
 //https://github.com/diskfs/go-diskfs
 func main() {
+	fmt.Printf("pi-image V:%s\r\n",version)
 	back.CheckCmd()
 	dialog()
 }
