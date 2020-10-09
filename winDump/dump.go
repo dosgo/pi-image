@@ -43,7 +43,8 @@ func writeImg( hDevice windows.Handle,fp *os.File , startPos uint64, endPos int)
 	lowoffset := *(*int32)(unsafe.Pointer(&offsetBytes[0]))
 	highoffsetptr := (*int32)(unsafe.Pointer(&offsetBytes[4]))
 	windows.SetFilePointer(hDevice,lowoffset,highoffsetptr, windows.FILE_CURRENT);
-
+	var done uint32
+	var ov windows.Overlapped
 	for i=0;i<forlen;i++{
 
 		if((i+1)==forlen) {
@@ -51,11 +52,16 @@ func writeImg( hDevice windows.Handle,fp *os.File , startPos uint64, endPos int)
 		}else {
 			endlen=uint32(BUFFER_SIZE);
 		}
-		err:=windows.ReadFile(hDevice, buffer, &endlen,nil);
+
+		err:=windows.ReadFile(hDevice, buffer, &endlen,&ov);
+
 		if(err==nil) {
-			_,err=fp.Write(buffer);
-			if(err!=nil){
-				fmt.Printf("write img error\r\n");
+			err=windows.GetOverlappedResult(hDevice,&ov,&done,true);
+			if(err==nil) {
+				_, err = fp.Write(buffer[:int(done)]);
+				if (err != nil) {
+					fmt.Printf("write img error\r\n");
+				}
 			}
 		}
 		outBuf=fmt.Sprintf("%.2f", float32(i*100.0/forlen));
