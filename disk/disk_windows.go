@@ -2,6 +2,8 @@ package disk
 
 import (
 	"fmt"
+	"pi-image/comm"
+	"strings"
 )
 import "github.com/StackExchange/wmi"
 
@@ -41,38 +43,39 @@ type Win32_DiskDriveToDiskPartition  struct {
 
 
 
-
-func GetStorageInfo() {
+func GetStorageInfo(usb bool) []comm.DiskInfo {
 	var storageinfo []storageInfo
 	var logicalDisk []Win32_DiskDriveToDiskPartition
 	var diskPart []Win32_DiskDriveToDiskPartition
-	err := wmi.Query("SELECT * FROM Win32_DiskDrive", &storageinfo)
+	var where="";
+	var disks = make([]comm.DiskInfo, 0)
+	if(usb) {
+		where = " where InterfaceType='USB'";
+	}
+	err := wmi.Query("SELECT * FROM Win32_DiskDrive"+where, &storageinfo)
 	if err != nil {
-		return
+		return disks;
 	}
 	for _, storage := range storageinfo {
-		fmt.Printf("dd:%s name:%s %s %s \r\n",storage.DeviceID,storage.Name,storage.Model,storage.SerialNumber);
-
 		err1 := wmi.Query("ASSOCIATORS OF {Win32_DiskDrive.DeviceID='"+ storage.DeviceID +"'}  WHERE AssocClass = Win32_DiskDriveToDiskPartition ", &diskPart)
 		if(err1==nil){
 			for _, storage1 := range diskPart {
-
 				err = wmi.Query("ASSOCIATORS OF {Win32_DiskPartition.DeviceID='"+storage1.DeviceID+"'} WHERE AssocClass = Win32_LogicalDiskToPartition",&logicalDisk);
 				if(err1==nil){
 					for _, logicalD := range logicalDisk {
-						fmt.Printf("logicalDisk:%s  %s \r\n",logicalD.Name,logicalD.DeviceID)
+						_path:=strings.TrimSpace(logicalD.Name)
+						_disk := comm.DiskInfo{
+							Path:_path[:1],
+							Name: storage.Model,
+						}
+						disks = append(disks, _disk)
 					}
-
 				}
-				fmt.Printf("storage1:%v \r\n",storage1)
 			}
-
 		}else{
 			fmt.Printf("err1:%v\r\n",err1)
 		}
 	}
-
-
-
+	return disks;
 }
 

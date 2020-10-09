@@ -3,21 +3,26 @@ package main
 import (
 	"fmt"
 	"pi-image/back"
+	"pi-image/comm"
+	"runtime"
 	"time"
 
 	_ "github.com/diskfs/go-diskfs"
 	_ "github.com/diskfs/go-diskfs/disk"
 	_ "github.com/diskfs/go-diskfs/partition"
 )
-var version="v1.0-(2020-10-05)"
+var version="1.1-(2020-10-09)"
 
 //https://github.com/dsoprea/go-ext4
 //https://github.com/nerd2/gexto
 //https://github.com/paulmey/inspect-azure-vhd/
 //https://github.com/diskfs/go-diskfs
 func main() {
+	back.CheckPm();
 	fmt.Printf("pi-image V:%s\r\n",version)
-	back.CheckCmd()
+	if(runtime.GOOS!="windows") {
+		comm.CheckCmd()
+	}
 	dialog()
 }
 

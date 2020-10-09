@@ -1,4 +1,5 @@
 // +build !windows
+
 package back
 
 import (
@@ -6,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"pi-image/comm"
 	"strconv"
 	"strings"
 	"syscall"
@@ -16,14 +18,10 @@ import (
 	"github.com/rekby/mbr"
 )
 
-type DiskInfo struct {
-	Path string
-	Name string
-}
 
-func GetDisk() []DiskInfo {
+func GetDisk() []comm.DiskInfo {
 	rd, err := ioutil.ReadDir("/sys/block")
-	var disks = make([]DiskInfo, 0)
+	var disks = make([]comm.DiskInfo, 0)
 	var devName = ""
 	if err == nil {
 		for _, fi := range rd {
@@ -32,7 +30,7 @@ func GetDisk() []DiskInfo {
 				if err == nil {
 					devName = strings.TrimSpace(string(modelBuf))
 				}
-				_disk := DiskInfo{
+				_disk := comm.DiskInfo{
 					Path: fmt.Sprintf("/dev/%s", fi.Name()),
 					Name: devName,
 				}
@@ -180,11 +178,6 @@ selfBack true
 */
 
 func Backup(devName string, imgFile string, selfBack bool) error {
-	//check root
-	if os.Geteuid() != 0 {
-		fmt.Printf("Please run with sudo.\r\n")
-		os.Exit(-1)
-	}
 	usbmount := "/mnt"
 	var err error = nil
 	var bootDev = ""
@@ -596,4 +589,12 @@ func DiskUsage(path string) (disk DiskStatus) {
 	disk.Free = fs.Bfree * uint64(fs.Bsize)
 	disk.Used = disk.All - disk.Free
 	return
+}
+
+func CheckPm(){
+	//check root
+	if os.Geteuid() != 0 {
+		fmt.Printf("Please run with sudo.\r\n")
+		os.Exit(-1)
+	}
 }

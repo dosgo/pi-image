@@ -1,10 +1,16 @@
-package back
+package comm
 
 import (
 	"fmt"
 	"os"
 	"strings"
 )
+
+type DiskInfo struct {
+	Path string
+	Name string
+}
+
 
 func CheckCmd() {
 	cmds := map[string]string{
