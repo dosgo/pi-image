@@ -1,17 +1,16 @@
 package winDump
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/rekby/mbr"
 	"golang.org/x/sys/windows"
 	"io"
 	"log"
 	"math"
 	"os"
 	"pi-image/win"
-	"github.com/rekby/mbr"
 	"strconv"
 	"unsafe"
 )
@@ -23,9 +22,11 @@ var BUFFER_SIZE=9216
 
 func writeZero( fp *os.File,start uint64, _len uint64) {
 	var buf = make([]byte, 512, 512)
-	fp.Seek(int64(start)*512,io.SeekCurrent)
-	for i:=0;i<int(_len);i++{
-		fp.Write(buf);
+	if(_len>0) {
+		fp.Seek(int64(start)*512, io.SeekCurrent)
+		for i := 0; i < int(_len); i++ {
+			fp.Write(buf);
+		}
 	}
 }
 
@@ -36,7 +37,6 @@ func writeImg( hDevice windows.Handle,fp *os.File , startPos uint64, endPos int)
 	var buffer = make([]byte, BUFFER_SIZE)
 	var  forLenF float64=float64(endPos*512/BUFFER_SIZE);
 	var forlen int=int(math.Ceil(forLenF));
-	stdOut := bufio.NewWriter(os.Stdout)
 	var offsetBytes = make([]byte, 8)
 	fp.Seek(int64(startPos)*512,io.SeekCurrent)
 	binary.LittleEndian.PutUint64(offsetBytes, uint64(startPos*512+uint64(i)*uint64(BUFFER_SIZE)))
@@ -55,21 +55,21 @@ func writeImg( hDevice windows.Handle,fp *os.File , startPos uint64, endPos int)
 		if(err==nil) {
 			_,err=fp.Write(buffer);
 			if(err!=nil){
-				stdOut.Write([]byte("write img error\r\n"));
+				fmt.Printf("write img error\r\n");
 			}
 		}
-		outBuf=fmt.Sprintf("%d", (i*100.0/forlen));
+		outBuf=fmt.Sprintf("%.2f", float32(i*100.0/forlen));
 		// fseek(stdout,-7,SEEK_CUR);
-		stdOut.Write([]byte(outBuf));
-		stdOut.Write([]byte("%"));
+		fmt.Printf(outBuf);
+		fmt.Printf("%s","%");
 		//这是重点
 		for j:=0;j<=len(outBuf);j++{
-			stdOut.Write([]byte("\r"));
+			fmt.Printf("\r");
 		}
-		stdOut.Flush()
+
 	}
-	stdOut.Write([]byte("100% ok \r\n"));
-	stdOut.Flush()
+	fmt.Printf("100%s ok \r\n","%");
+
 }
 
 
@@ -271,11 +271,12 @@ func DumpImg(volume string,savepath string) int {
 	fmt.Printf("dump  start\r\n");
     partitions:=Mbr.GetAllPartitions();
     var i=1;
+    var last=0;
 	for _, partition := range  partitions{
 		//有起始偏移量，表示分区存在
 		if(partition.GetType()!=0){
 			//写空闲的
-			writeZero(fp,uint64(partition.GetLBALast()),uint64(partition.GetLBALen()));
+			writeZero(fp,uint64(last),uint64(partition.GetLBAStart()-uint32(last)));
 			fmt.Printf("dump partition %d  \r\n",i);
 			writeImg(hDevice,fp,uint64(partition.GetLBAStart()),int(partition.GetLBALen()));
 		}
