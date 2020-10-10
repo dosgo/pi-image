@@ -59,19 +59,25 @@ func GetStorageInfo(usb bool) []comm.DiskInfo {
 	for _, storage := range storageinfo {
 		err1 := wmi.Query("ASSOCIATORS OF {Win32_DiskDrive.DeviceID='"+ storage.DeviceID +"'}  WHERE AssocClass = Win32_DiskDriveToDiskPartition ", &diskPart)
 		if(err1==nil){
+			var _path="";
+			var _name=storage.Model;
+			var _allPath="";
 			for _, storage1 := range diskPart {
 				err = wmi.Query("ASSOCIATORS OF {Win32_DiskPartition.DeviceID='"+storage1.DeviceID+"'} WHERE AssocClass = Win32_LogicalDiskToPartition",&logicalDisk);
 				if(err1==nil){
 					for _, logicalD := range logicalDisk {
-						_path:=strings.TrimSpace(logicalD.Name)
-						_disk := comm.DiskInfo{
-							Path:_path[:1],
-							Name: storage.Model,
+						if(_path==""){
+							_path=strings.TrimSpace(logicalD.Name)
 						}
-						disks = append(disks, _disk)
+						_allPath=_allPath+strings.TrimSpace(logicalD.Name)
 					}
 				}
 			}
+			_disk := comm.DiskInfo{
+				Path:_path[:1],
+				Name: _name+"("+_allPath+")",
+			}
+			disks = append(disks, _disk)
 		}else{
 			fmt.Printf("err1:%v\r\n",err1)
 		}

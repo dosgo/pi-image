@@ -11,7 +11,7 @@ import (
 	_ "github.com/diskfs/go-diskfs/disk"
 	_ "github.com/diskfs/go-diskfs/partition"
 )
-var version="1.1-(2020-10-09)"
+var version="1.2-(2020-10-10)"
 
 //https://github.com/dsoprea/go-ext4
 //https://github.com/nerd2/gexto
@@ -40,7 +40,11 @@ func dialog() {
 			if selfDev == v.Path {
 				fmt.Println(fmt.Sprintf("%d.%s(Current system)", _k, v.Path))
 			} else {
-				fmt.Println(fmt.Sprintf("%d.%s(%s)", _k, v.Path, v.Name))
+				if(runtime.GOOS!="windows") {
+					fmt.Println(fmt.Sprintf("%d.%s(%s)", _k, v.Path, v.Name))
+				}else{
+					fmt.Println(fmt.Sprintf("%d.%s", _k, v.Name))
+				}
 			}
 		}
 		fmt.Scanf("%d", &diskNum)
