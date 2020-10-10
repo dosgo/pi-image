@@ -23,14 +23,14 @@ var BUFFER_SIZE=9216
 func writeZero( fp *os.File,start uint64, _len uint64) {
 	var buf = make([]byte, 512, 512)
 	if(_len>0) {
-		fp.Seek(int64(start)*512, io.SeekCurrent)
+		fp.Seek(int64(start)*512, io.SeekStart)
 		for i := 0; i < int(_len); i++ {
 			fp.Write(buf);
 		}
 	}
 }
 
-func writeImg( hDevice windows.Handle,fp *os.File , startPos uint64, endPos int) {
+func writeImg( hDevice windows.Handle,fp *os.File , startPos uint64, endPos int) error{
 	var  outBuf string;
 	var  i int=0
 	var endlen uint32=0
@@ -38,30 +38,25 @@ func writeImg( hDevice windows.Handle,fp *os.File , startPos uint64, endPos int)
 	var  forLenF float64=float64(endPos*512/BUFFER_SIZE);
 	var forlen int=int(math.Ceil(forLenF));
 	var offsetBytes = make([]byte, 8)
-	fp.Seek(int64(startPos)*512,io.SeekCurrent)
-	binary.LittleEndian.PutUint64(offsetBytes, uint64(startPos*512+uint64(i)*uint64(BUFFER_SIZE)))
-	lowoffset := *(*int32)(unsafe.Pointer(&offsetBytes[0]))
-	highoffsetptr := (*int32)(unsafe.Pointer(&offsetBytes[4]))
-	windows.SetFilePointer(hDevice,lowoffset,highoffsetptr, windows.FILE_CURRENT);
-	var done uint32
-	var ov windows.Overlapped
+	var err error;
+	_,err=fp.Seek(int64(startPos)*512,io.SeekStart)
+	if(err!=nil){
+		return err;
+	}
+
 	for i=0;i<forlen;i++{
-
-		if((i+1)==forlen) {
-			endlen=uint32(endPos*512-BUFFER_SIZE*i);
-		}else {
-			endlen=uint32(BUFFER_SIZE);
+		binary.LittleEndian.PutUint64(offsetBytes, startPos*512+uint64(i*BUFFER_SIZE))
+		lowoffset := *(*int32)(unsafe.Pointer(&offsetBytes[0]))
+		highoffsetptr := (*int32)(unsafe.Pointer(&offsetBytes[4]))
+		_,err=windows.SetFilePointer(hDevice,lowoffset,highoffsetptr, windows.FILE_BEGIN);
+		if(err!=nil){
+			return err;
 		}
-
-		err:=windows.ReadFile(hDevice, buffer, &endlen,&ov);
-
+		err:=windows.ReadFile(hDevice, buffer, &endlen,nil);
 		if(err==nil) {
-			err=windows.GetOverlappedResult(hDevice,&ov,&done,true);
-			if(err==nil) {
-				_, err = fp.Write(buffer[:int(done)]);
-				if (err != nil) {
-					fmt.Printf("write img error\r\n");
-				}
+			_, err = fp.Write(buffer[:endlen]);
+			if (err != nil) {
+				fmt.Printf("write img error\r\n");
 			}
 		}
 		outBuf=fmt.Sprintf("%.2f", float32(i*100.0/forlen));
@@ -75,7 +70,7 @@ func writeImg( hDevice windows.Handle,fp *os.File , startPos uint64, endPos int)
 
 	}
 	fmt.Printf("100%s ok \r\n","%");
-
+	return nil;
 }
 
 
@@ -244,7 +239,7 @@ func DumpImg(volume string,savepath string) int {
 	}
 	defer  windows.CloseHandle(hDevice);
 	//读取MBR
-	var  MbrBuf =make([]byte,512);
+	var  MbrBuf =make([]byte,MBRLEN);
 	var len uint32=uint32(MBRLEN);
 	err=windows.ReadFile(hDevice, MbrBuf, &len,nil);
 
@@ -277,16 +272,21 @@ func DumpImg(volume string,savepath string) int {
 	fmt.Printf("dump  start\r\n");
     partitions:=Mbr.GetAllPartitions();
     var i=1;
-    var last=0;
+    var last=512;
 	for _, partition := range  partitions{
 		//有起始偏移量，表示分区存在
 		if(partition.GetType()!=0){
+			fmt.Printf("")
 			//写空闲的
 			writeZero(fp,uint64(last),uint64(partition.GetLBAStart()-uint32(last)));
 			fmt.Printf("dump partition %d  \r\n",i);
-			writeImg(hDevice,fp,uint64(partition.GetLBAStart()),int(partition.GetLBALen()));
+			err=writeImg(hDevice,fp,uint64(partition.GetLBAStart()),int(partition.GetLBALast()));
+			if(err!=nil){
+				fmt.Printf("dump err:%v\r\n",err);
+				return -1;
+			}
+			last=int(partition.GetLBALast());
 		}
-		fmt.Printf("partition:%d\r\n",i)
 		i++;
 	}
 	fmt.Printf("dump ok...\r\n");
