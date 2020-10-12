@@ -15,6 +15,7 @@ go build
 
 # use
 linux
+
 sudo ./pi-image
 
 windows
