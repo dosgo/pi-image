@@ -14,5 +14,11 @@ git clone https://github.com/dosgo/pi-image
 go build
 
 # use
-
+linux
 sudo ./pi-image
+
+windows
+1. Run pi-image in cmd
+2. Use "docker run --rm --privileged=true -v `pwd`:/workdir turee/pishrink-docker pishrink <your-image>.img" to reduce the image
+
+
