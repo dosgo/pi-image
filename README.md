@@ -21,5 +21,6 @@ sudo ./pi-image
 windows
 1. Run pi-image in cmd
 2. Use "docker run --rm --privileged=true -v `pwd`:/workdir turee/pishrink-docker pishrink <your-image>.img" to reduce the image
+  //docker run --rm --privileged=true -v /f:/workdir turee/pishrink-docker pishrink openwrt-19.07.4-brcm2708-bcm2710-rpi-3-ext4-factory.img
 
 
