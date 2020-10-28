@@ -3,12 +3,16 @@
 package back
 
 import (
+	"bytes"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"pi-image/comm"
 	"github.com/moby/moby/pkg/loopback"
+	"pi-image/disk"
 	"strconv"
 	"strings"
 	"syscall"
@@ -421,7 +425,7 @@ func losetup(imgFile string) (string,error){
 
 func losetupV1(imgFile string) (string,error){
 	xx,err:=loopback.AttachLoopDevice(imgFile);
-
+	return xx.Name(),err;
 }
 
 func unLosetup(devLoop string){
@@ -549,7 +553,7 @@ func GetPartUUID(devPath string) string {
 		devName=devPath[:len(devPath)-1]
 	}
 	fmt.Printf("devName:%s\r\n",devName)
-	buf,err:=ReadDiskBuf(devName,512+512+32*512)
+	buf,err:=disk.ReadDiskBuf(devName,512+512+32*512)
 	if(err!=nil){
 		fmt.Printf("err:%v\r\n",err)
 		return "";
@@ -557,6 +561,7 @@ func GetPartUUID(devPath string) string {
 
 	//read start
 	var partStart uint64 = 0
+	b,err:=ioutil.ReadFile(fmt.Sprintf("/sys/class/block/%s/start",devPath[strings.LastIndex(devPath, "/")+1:]))
 	if err == nil {
 		partStart, err = strconv.ParseUint(strings.TrimSpace(string(b)), 10, 64)
 		if err != nil {
