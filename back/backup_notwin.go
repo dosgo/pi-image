@@ -8,12 +8,12 @@ import (
 	"os"
 	"os/exec"
 	"pi-image/comm"
+	"github.com/moby/moby/pkg/loopback"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
-	"github.com/juju/utils/v2/fs"
 	"github.com/rekby/gpt"
 	"github.com/rekby/mbr"
 )
@@ -305,13 +305,13 @@ func Backup(devName string, imgFile string, selfBack bool) error {
 		return err
 	}
 
-	devTmp, err := exec.Command("losetup", "-f", "--show", imgFile).Output()
+	//mount img file
+	devLoop,err:= losetup(imgFile);
 	if err != nil {
 		return err
 	}
-	devLoop := strings.TrimSpace(string(devTmp))
 	//auto remove
-	defer exec.Command("losetup", "-d", devLoop).Run()
+	defer unLosetup(devLoop)
 
 	err = exec.Command("kpartx", "-va", devLoop).Run()
 	if err != nil {
@@ -410,17 +410,25 @@ func Backup(devName string, imgFile string, selfBack bool) error {
 	return nil
 }
 
-func cZeroImg(fPath string, fSize uint64) error {
-	f, err := os.Create(fPath)
+func losetup(imgFile string) (string,error){
+	devTmp, err := exec.Command("losetup", "-f", "--show", imgFile).Output()
 	if err != nil {
-		return err
+		return "",err
 	}
-	defer f.Close()
-	if err := f.Truncate(int64(fSize)); err != nil {
-		return nil
-	}
-	return nil
+	devLoop := strings.TrimSpace(string(devTmp))
+	return devLoop,nil;
 }
+
+func losetupV1(imgFile string) (string,error){
+	xx,err:=loopback.AttachLoopDevice(imgFile);
+
+}
+
+func unLosetup(devLoop string){
+	exec.Command("losetup", "-d", devLoop).Run()
+}
+
+
 func cZeroImgV1(fPath string, fSize uint64, bs int) error {
 	f, err := os.Create(fPath)
 	if err != nil {
@@ -475,36 +483,7 @@ func dumpCopy(srcDir string, dstDir string, excludeDirs []string) error {
 	return err
 }
 
-/*tarCopy*/
-func tarCopy(srcDir string, dstDir string, excludeDirs []string) error {
-	var excludeDirParams = []string{"cp", "c", "-C", srcDir}
-	for _, v := range excludeDirs {
-		excludeDirParams = append(excludeDirParams, "--exclude="+v)
-	}
-	c1 := exec.Command("tar", excludeDirParams...)
-	c2 := exec.Command("tar", "xvp", "-C", dstDir)
 
-	c2.Stdin, _ = c1.StdoutPipe()
-	c2.Stdout = os.Stdout
-	err := c2.Start()
-	if err != nil {
-		return err
-	}
-	err = c1.Run()
-	if err != nil {
-		return err
-	}
-	err = c2.Wait()
-	return err
-}
-
-func goCopy(srcDir string, dstDir string) error {
-	return fs.Copy(srcDir, dstDir)
-}
-
-func CpCopy() {
-	fmt.Printf("dd")
-}
 
 func Sed(file string, old string, newStr string) error {
 	input, err := ioutil.ReadFile(file)
@@ -556,6 +535,78 @@ func GetUUid(devPath string) string {
 	}
 	return ""
 }
+
+
+
+
+//Obtain partuuid instead of blkid command
+func GetPartUUID(devPath string) string {
+	var devNum=devPath[len(devPath)-1:]
+	var devName="";
+	if(strings.HasSuffix(devPath,"p"+devNum)){
+		devName=devPath[:len(devPath)-2]
+	}else{
+		devName=devPath[:len(devPath)-1]
+	}
+	fmt.Printf("devName:%s\r\n",devName)
+	buf,err:=ReadDiskBuf(devName,512+512+32*512)
+	if(err!=nil){
+		fmt.Printf("err:%v\r\n",err)
+		return "";
+	}
+
+	//read start
+	var partStart uint64 = 0
+	if err == nil {
+		partStart, err = strconv.ParseUint(strings.TrimSpace(string(b)), 10, 64)
+		if err != nil {
+			fmt.Printf("err:%v\r\n", err)
+			partStart = 0
+		}
+	}
+	fmt.Printf("str:%s partStart:%d\r\n",fmt.Sprintf("/sys/class/block/%s/start",devPath[strings.LastIndex(devPath, "/")+1:]),partStart)
+
+	reader := bytes.NewReader(buf)
+	if(buf[450]==0xee){
+		//#The flag EE at offset 450 states that it is GPT drive
+		reader.Seek(512, io.SeekStart)
+		gptTable, err:= gpt.ReadTable(reader, 512)
+		if(err!=nil){
+			fmt.Printf("err:%v\r\n",err)
+			return "";
+		}
+		for _, part := range gptTable.Partitions {
+			if(!part.IsEmpty()) {
+				fmt.Printf("id:%s \r\n",part.Id.String())
+				if(part.FirstLBA==partStart){
+					return part.Id.String();
+				}
+			}
+		}
+	}else {
+		mbr, err := mbr.Read(reader)
+		var diskId="";
+		//DiskIdentifier  https://www.linuxquestions.org/questions/linux-general-1/what-is-disk-identifier-740408/
+		for i:=1;i<=4;i++{
+			diskId=diskId+ hex.EncodeToString(buf[440+4-i:440+4-i+1])
+		}
+		if (err != nil) {
+			fmt.Printf("err:%v\r\n", err)
+			return "";
+		}
+		for _, part := range mbr.GetAllPartitions() {
+			if(!part.IsEmpty()) {
+				if(uint64(part.GetLBAStart())==partStart){
+					return diskId+"-"+strconv.Itoa(part.Num);
+				}
+			}
+		}
+	}
+	return "";
+}
+
+
+
 func GetUUIDByBlkid(devPath string) string {
 	out, err := exec.Command("blkid", "-o", "export", devPath).Output()
 	if err != nil {

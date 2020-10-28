@@ -2,6 +2,8 @@ package disk
 
 import (
 	"fmt"
+	"golang.org/x/sys/windows"
+	"log"
 	"pi-image/comm"
 	"strings"
 )
@@ -83,5 +85,28 @@ func GetStorageInfo(usb bool) []comm.DiskInfo {
 		}
 	}
 	return disks;
+}
+
+func ReadDiskBuf(dev string,_len int) ([]byte,error){
+	//通过CreateFile来获得设备的句柄
+	hDevice,err:= windows.CreateFile(windows.StringToUTF16Ptr(dev), // 设备名称,这里指第一块硬盘
+		windows.GENERIC_READ,                // no access to the drive
+		windows.FILE_SHARE_READ | windows.FILE_SHARE_WRITE,  // share mode
+		nil,             // default security attributes
+		windows.OPEN_EXISTING,    // disposition
+		0,                // file attributes
+		0);            // do not copy file attributes
+	if err != nil{
+		log.Printf("Creatfile error!May be no permission!ERROR_ACCESS_DENIED！\n");
+		return nil,err;
+	}
+	//读取MBR
+	var  MbrBuf =make([]byte,_len);
+	var len uint32=uint32(_len);
+	err=windows.ReadFile(hDevice, MbrBuf, &len,nil);
+	if(err!=nil){
+		return nil,err;
+	}
+	return MbrBuf,nil;
 }
 
